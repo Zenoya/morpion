@@ -27,7 +27,7 @@ var (
 	joueur1 = true
 )
 
-// fonction proncipale au lancement
+// fonction principale au lancement
 func main() {
 	play()
 }
