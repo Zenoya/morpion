@@ -1,187 +1,135 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 )
 
-// On défini les constantes globales :
-const (
-	// taille de l'aire de jeu
-	area = 9
-	// symbole des joueurs
-	symboleJ1 = "X"
-	symboleJ2 = "O"
-)
-
-// On défini les variables globales
-var (
-	// aire de jeu
-	tableauPlateauMorpion = [area]string{
-		"1", "2", "3",
-		"4", "5", "6",
-		"7", "8", "9"}
-	// le joueur 1 commence
-	joueur1 = true
-)
-
-// fonction principale au lancement
 func main() {
-	play()
-}
+	for {
+		displayCheckerboard()
+		filledPlayerBox(getUserInput())
 
-// fonction qui lance et gère la partie
-func play() {
-	var numeroDeLaCase int
-	for true {
-		affichageDuDamier()                         // On affiche le damier
-		numeroDeLaCase = inputUtilisateurVerifiee() // on récup l'input entré pas l'utilisateur
-		remplirCaseJouee(numeroDeLaCase)            // on rempli la case jouee par le symbole selon le joueur
+		if checkVictory() {
+			displayCheckerboard()
 
-		if partieGagnee() { // après le coup on vérifie si le joueur à gagner
-			affichageDuDamier()
-			fmt.Println(nomDuJoueur(), "vous avez gagné la partie !")
-			os.Exit(0) // on quitte
-		} else if partieExaequo() { // si pas gagné on vérifie si match nul
-			fmt.Println("Match nul !")
-			os.Exit(0) // on quitte
+			logrus.WithField("player-name", getPlayerName()).Infoln("vous avez gagné la partie !")
+
+			return
+		} else if checkDraw() {
+			logrus.Infoln("Match nul !")
+
+			return
 		}
-		joueur1 = !joueur1 // changement de joueur si partie contiue
-	}
 
+		if currentPlayer == player1 {
+			currentPlayer = player2
+		} else {
+			currentPlayer = player1
+		}
+	}
 }
 
-// fonction qui affiche le damier selon cases remplies ou non
-func affichageDuDamier() {
-	for i := 0; i < len(tableauPlateauMorpion); i++ {
-		fmt.Print(" ", tableauPlateauMorpion[i], " ")
-		if (i+1)%3 == 0 { // tous les 3 éléments on revient à la ligne
+func displayCheckerboard() {
+	for i, v := range gameArea {
+		fmt.Printf(" %s ", v)
+
+		// each 3 elem, new line
+		if (i+1)%3 == 0 {
 			fmt.Println()
 		}
 	}
 }
 
-// fonction qui vérifie l'input entrée par l'utilisateur
-func inputUtilisateurVerifiee() int {
+func getUserInput() int {
 	var (
-		valeurValide   = false // booleen qui permet de savoir quand l'input sera valide
-		numeroDeLaCase = 0
-		err            error
-		scanner        = bufio.NewScanner(os.Stdin) //permet de lire une input entrée par l'utilisateur
+		ok        bool
+		boxNumber = 0
+		err       error
 	)
 
-	for valeurValide == false { // tant que la valeur n'est pas valide
-		fmt.Print(nomDuJoueur(), "Veuillez entrer un nombre entre 1 et ", area, " :")
-		scanner.Scan()
-		numeroDeLaCase, err = strconv.Atoi(scanner.Text()) // A CHECK
+	for !ok {
+		logrus.Infof("%s: Veuillez entrer un nombre entre 1 et %d\n", getPlayerName(), area)
+
+		var userInput string
+		if _, err := fmt.Scanf("%v\n", &userInput); err != nil {
+			logrus.Infof("une erreur est apparue lors de la saisie: %v\n", err)
+		}
+
+		boxNumber, err = strconv.Atoi(userInput)
 		if err != nil {
-			fmt.Println("Merci de rentrer uniquement un chiffre !")
-		} else if numeroDeLaCase < 1 || numeroDeLaCase > area {
-			fmt.Println("Merci de rentrer un chiffre entre 1 et ", area, " !")
-			// on check si la case est deja prise ou pas
-		} else if tableauPlateauMorpion[numeroDeLaCase-1] == symboleJ1 || tableauPlateauMorpion[numeroDeLaCase-1] == symboleJ2 {
-			fmt.Println("Case déjà prise !")
-		} else {
-			valeurValide = true
+			logrus.Infof("une erreur est apparue lors de la saisie: %v\n", err)
 		}
+
+		if boxNumber < 1 || boxNumber > area {
+			logrus.Infof("Merci de rentrer un chiffre entre 1 et %d\n", area)
+		} else if gameArea[boxNumber-1] == player1 || gameArea[boxNumber-1] == player2 {
+			logrus.Infoln("Case déjà prise !")
+		}
+
+		ok = true
 	}
-	return numeroDeLaCase - 1
+
+	return boxNumber - 1
 }
 
-// fonction qui détermine le nom du joueur selon a qui c'est de jouer
-func nomDuJoueur() string {
-	if joueur1 == true {
+func getPlayerName() string {
+	if currentPlayer == player1 {
 		return "Joueur 1 "
-	} else {
-		return "Joueur 2 "
 	}
+
+	return "Joueur 2 "
 }
 
-// fonction qui remplie la case choisie par le symbole du joueur en cours
-func remplirCaseJouee(numeroDeLaCase int) {
-	if joueur1 == true {
-		tableauPlateauMorpion[numeroDeLaCase] = symboleJ1
-	} else {
-		tableauPlateauMorpion[numeroDeLaCase] = symboleJ2
+func filledPlayerBox(b int) {
+	if currentPlayer == player1 {
+		gameArea[b] = player1
+		return
 	}
+
+	gameArea[b] = player2
 }
 
-// fonction qui détermine si on gagne la partie selon tous les schéma de victoire possible
-func partieGagnee() bool {
-
-	// tableau double dimension des différentes configurations de victoire
-	tableauVictoirePossible := [][area]bool{
-		{
-			true, true, true,
-			false, false, false,
-			false, false, false},
-
-		{
-			false, false, true,
-			false, false, true,
-			false, false, true},
-		{
-			false, false, false,
-			false, false, false,
-			true, true, true},
-		{
-			true, false, false,
-			true, false, false,
-			true, false, false},
-		{
-			true, false, false,
-			false, true, false,
-			false, false, true},
-		{
-			false, false, true,
-			false, true, false,
-			true, false, false},
-		{
-			false, true, false,
-			false, true, false,
-			false, true, false},
-		{
-			false, false, false,
-			true, true, true,
-			false, false, false}}
-
+func checkVictory() bool {
 	// on crée un damier pour visualiser les combinaison de la partie actuelle
-	var tableauPartieEnCours [area]bool
+	var currentCheckerboard [area]bool
 
-	for index, valeur := range tableauPlateauMorpion {
-		if joueur1 && valeur == symboleJ1 { // si c'est le J1 qui joue et que la case a son symbole
-			tableauPartieEnCours[index] = true
-		} else if !joueur1 && valeur == symboleJ2 { // et inversement
-			tableauPartieEnCours[index] = true
+	for index, v := range gameArea {
+		if currentPlayer == player1 && v == player1 {
+			currentCheckerboard[index] = true
+		} else if currentPlayer == player2 && v == player2 {
+			currentCheckerboard[index] = true
 		}
 	}
 
-	comparaison := 0 // on compte le nombre de true dans les meme cases entre tableauPartieEnCours et TableauVictoirePossible
-	for _, tableauVictoire := range tableauVictoirePossible {
-		for i := 0; i < len(tableauPartieEnCours); i++ {
-			if tableauPartieEnCours[i] == true && tableauPartieEnCours[i] == tableauVictoire[i] { // si c'est à true dans le même index de tableauPartieEnCours et tableauVictoire alors on incrémente la comparaison
+	comparaison := 0
+	for _, victory := range possibleVictories {
+		for i, v := range currentCheckerboard {
+			// si c'est à true dans le même index de tableauPartieEnCours et tableauVictoire alors on incrémente la comparaison
+			if v && v == victory[i] {
 				comparaison++
-				if comparaison == 3 { // si comparaison true alors le joueur a gagné
+				if comparaison == 3 {
 					return true
 				}
 			}
 		}
-		comparaison = 0 // comparaison remis a 0 pour vérifier une autre combinaison
+
+		comparaison = 0
 	}
+
 	return false
 }
 
-// fonction qui vérifie si match nul
-func partieExaequo() bool {
+func checkDraw() bool {
 	compteur := 0
-
-	for _, valeur := range tableauPlateauMorpion {
-		if valeur == symboleJ1 || valeur == symboleJ2 { // si la case est prise par un joueur
-			compteur++ // on incrémente le compteur
+	for _, v := range gameArea {
+		// si la case est prise par un joueur
+		if v == player1 || v == player2 {
+			compteur++
 		}
 	}
 
-	return (compteur == len(tableauPlateauMorpion))
+	return (compteur == len(gameArea))
 }
